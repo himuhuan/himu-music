@@ -1,0 +1,213 @@
+﻿@namespace HimuMusic.Components
+@using System.ComponentModel
+@using HimuMusic.Services
+@using HimuMusic.States
+@inject IAudioFilePicker AudioFilePickerService
+@inject IAudioPlayer MusicPlayer
+@inject MusicPlayerState PlayerState
+@inject IJSRuntime JS
+
+@if (PlayerState.PlayingMusic != null)
+{
+    <MCol class="pb-5">
+        <MCard class="p-3" OnClick="_ => _showExpandCard = !_showExpandCard" Outlined>
+            <ExpandTransition>
+                <MCard Show=@_showExpandCard style="display: flex" Flat>
+                    <MAvatar Class="ma-3" Size=125 Tile>
+                        <MImage Src="@ConvertToImageSource(PlayerState.PlayingMusic.AlbumPictureBase64)">
+                        </MImage>
+                    </MAvatar>
+                    <div>
+                        <MCardTitle>
+                            @CutMusicTitle(PlayerState.PlayingMusic.Title)
+                        </MCardTitle>
+                        <MCardSubtitle>
+                            @PlayerState.PlayingMusic.FirstPerformer
+                        </MCardSubtitle>
+                        <MCardActions style="display:flex; justify-content: space-between">
+                            <MButton Fab Icon Height=40 Right Width=40 OnClickStopPropagation="true" OnClick="HandlePrevMusic">
+                                <MIcon>mdi-skip-previous</MIcon>
+                            </MButton>
+                            <MButton Fab Icon Height=40 Right Width=40 @onclick="HandlePushPlayBtn">
+                                <MIcon>@_playerIcon</MIcon>
+                            </MButton>
+                            <MButton Fab Icon Height=40 Right Width=40 OnClickStopPropagation="true" OnClick="HandleNextMusic">
+                                <MIcon>mdi-skip-next</MIcon>
+                            </MButton>
+                        </MCardActions>
+                    </div>
+                </MCard>
+            </ExpandTransition>
+            <MContainer class="m-0 p-0">
+                <div style="width: max-content; padding-left: 5px">
+                    @PlayerState.PlayingMusic.Title - @PlayerState.PlayingMusic.FirstPerformer
+                </div>
+                <div style="width: max-content; color:darkgray; padding-left: 5px">
+                    @($"{TimeSpan.FromSeconds(PlayerState.CurrentPosition):mm\\:ss}")
+                    / @($"{PlayerState.PlayingMusic?.Duration ?? TimeSpan.Zero:mm\\:ss}")
+                </div>
+                <MSlider @bind-Value="PlayerState.CurrentPosition"
+                         TValue="int"
+                         Min="0"
+                         Max="@PlayerState.PlayingMusic!.Duration.TotalSeconds"
+                         OnChange="HandleOnChange"
+                         TrackColor="#fbc6c2">
+                </MSlider>
+            </MContainer>
+        </MCard>
+    </MCol>
+}
+else
+{
+    <MCol>
+        <MCard class="p-3" OnClick="_ => _showExpandCard = !_showExpandCard" Outlined>
+            <ExpandTransition>
+                <MCard Show=@_showExpandCard style="display: flex" Flat>
+                    <MAvatar Class="ma-3" Size=125 Tile>
+                    </MAvatar>
+                    <div>
+                        <MCardTitle>
+                            Himu Music
+                        </MCardTitle>
+                        <MCardSubtitle>
+                            点击你要播放的歌曲
+                        </MCardSubtitle>
+                        <MCardActions style="display:flex; justify-content: space-between">
+                            <MButton Fab Icon Height=40 Right Width=40 Disabled>
+                                <MIcon>mdi-skip-previous</MIcon>
+                            </MButton>
+                            <MButton Fab Icon Height=40 Right Width=40 @onclick="HandlePushPlayBtn" Disabled>
+                                <MIcon>@_playerIcon</MIcon>
+                            </MButton>
+                            <MButton Fab Icon Height=40 Right Width=40 Disabled>
+                                <MIcon>mdi-skip-next</MIcon>
+                            </MButton>
+                        </MCardActions>
+                    </div>
+                </MCard>
+            </ExpandTransition>
+            <MContainer class="m-0 p-0">
+                <div style="width: max-content; padding-left: 5px"> Himu Music </div>
+                <div style="width: max-content; color:darkgray; padding-left: 5px">
+                    00:00 / 00:00
+                </div>
+                <MSlider Disabled
+                         @bind-Value="PlayerState.CurrentPosition"
+                         TValue="int"
+                         Min="0"
+                         Max="0"
+                         OnChange="HandleOnChange"
+                         TrackColor="#fbc6c2">
+                </MSlider>
+            </MContainer>
+        </MCard>
+    </MCol>
+}
+
+<style>
+    .fade-enter-active, .fade-leave-active {
+        transition: opacity 1s;
+    }
+
+    .fade-enter, .fade-leave-to {
+        opacity: 0;
+    }
+</style>
+
+@code {
+    private Timer? _timer;
+    private bool _showExpandCard = true;
+    private string _playerIcon = "mdi-play";
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _timer = new Timer(UpdatePlayPosition, null, 0, 500);
+        PlayerState.PropertyChanged += PlayerState_PropertyChanged;
+    }
+
+    private void PlayerState_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PlayerState.CurrentPlayingListIndex))
+        {
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+
+    private void UpdatePlayPosition(object? state)
+    {
+        PlayerState.CurrentPosition = (int) MusicPlayer.GetCurrentPosition().TotalSeconds;
+        if (PlayerState.PlayingMusic != null)
+        {
+            PlayerState.IsPlaying = MusicPlayer.IsPlaying();
+            _playerIcon = (PlayerState.IsPlaying) ? "mdi-pause" : "mdi-play";
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void HandleOnChange(int position)
+    {
+        if (PlayerState.PlayingMusic == null)
+            return;
+        PlayerState.CurrentPosition = position;
+        if (!PlayerState.IsPlaying)
+            MusicPlayer.Play(PlayerState.PlayingMusic);
+        MusicPlayer.SeekTo(position);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandlePushPlayBtn()
+    {
+        if (PlayerState.PlayingMusic != null)
+        {
+            if (PlayerState.IsPlaying)
+                MusicPlayer.Pause();
+            else
+                MusicPlayer.Play(PlayerState.PlayingMusic);
+        }
+    }
+
+    private void HandlePrevMusic()
+    {
+        if (PlayerState.CurrentPlayingList != null)
+        {
+            int count = PlayerState.CurrentPlayingList.Count;
+            int index = PlayerState.CurrentPlayingListIndex.ToInt32();
+            index = (index - 1 + count) % count;
+            PlayerState.CurrentPlayingListIndex = index;
+            if (MusicPlayer.IsPlaying())
+            {
+                MusicPlayer.Stop();
+            }
+            MusicPlayer.Play(PlayerState.PlayingMusic!);
+        }
+    }
+
+    private void HandleNextMusic()
+    {
+        if (PlayerState.CurrentPlayingList != null)
+        {
+            int count = PlayerState.CurrentPlayingList.Count;
+            int index = PlayerState.CurrentPlayingListIndex.ToInt32();
+            index = (index + 1) % count;
+            PlayerState.CurrentPlayingListIndex = index;
+            if (MusicPlayer.IsPlaying())
+            {
+                MusicPlayer.Stop();
+            }
+            MusicPlayer.Play(PlayerState.PlayingMusic!);
+        }
+    }
+
+    private string CutMusicTitle(string title)
+    {
+        return (title.Length > 15) ? title[..12] + "..." : title;
+    }
+
+    private string ConvertToImageSource(string base64Str)
+    {
+        return $"data:image/jpeg;base64,{base64Str}";
+    }
+
+}

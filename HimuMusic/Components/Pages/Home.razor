@@ -1,0 +1,98 @@
+﻿@page "/"
+
+@using System.Net.Http.Headers
+@using HimuMusic.Models
+@using HimuMusic.Services
+@using HimuMusic.States
+
+@inject IAudioFilePicker AudioFilePickerService
+@inject MusicPlayerState AppState
+@inject IHimuMusicApiService HimuMusicApiService
+@inject NavigationManager NavigationManager
+
+<MCol>
+    @if (_userInfo != null)
+    {
+        <MListItem ThreeLine>
+            <MListItemAvatar Tile Size=80>
+                <MImage Src="@DecodeBase64(_userInfo.AvatarBase64)"></MImage>
+            </MListItemAvatar>
+            <MListItemContent>
+                <MListItemSubtitle>
+                    用户中心
+                </MListItemSubtitle>
+                <MListItemTitle Class="text-h5 mb-1">
+                    @_userInfo!.Name
+                </MListItemTitle>
+            </MListItemContent>
+        </MListItem>
+        <MDivider></MDivider>
+        <MListItem OnClick="HandleUploadMusic">
+            <MListItemIcon Tile Size=80>
+                <MIcon>mdi-cloud-upload</MIcon>
+            </MListItemIcon>
+            <MListItemContent>
+                <MListItemTitle>
+                    共享本地音乐到云端
+                </MListItemTitle>
+                <MListItemSubtitle>
+                    免费上传到云端保存您的音乐，并与他人分享。
+                </MListItemSubtitle>
+            </MListItemContent>
+        </MListItem>
+    }
+</MCol>
+
+<MSnackbar @bind-Value="_showSnackbar"
+           Action="Close">
+    上传成功，歌曲已添加到 “收藏”
+</MSnackbar>
+
+@code {
+    private HimuMusicUser? _userInfo;
+    private bool _showSnackbar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.CurrentNavTitle = "Himu Music";
+        if (AppState.CurrentLoginUserId != 0)
+        {
+            var response = await HimuMusicApiService.GetAsync<HimuMusicUser>($"api/user/{AppState.CurrentLoginUserId}");
+            if (response.StatusCode == 200)
+            {
+                _userInfo = response.Result;
+                return;
+            }
+        }
+
+        NavigationManager.NavigateTo("/login");
+    }
+
+    private string DecodeBase64(string base64String)
+    {
+        return "data:image/jpeg;base64," + base64String;
+    }
+
+    private async Task HandleUploadMusic()
+    {
+        var music = await AudioFilePickerService.PickAudioFileAsync("上传音乐文件");
+        if (music != null)
+        {
+            music.IssuerId = AppState.CurrentLoginUserId;
+            var response = await HimuMusicApiService.PostAsJsonAsync<long, AudioItem>("api/music", music);
+            if (response.StatusCode == 200)
+            {
+                Stream fileStream = new FileStream(music.Source, FileMode.Open, FileAccess.Read);
+                var file = new MultipartFormDataContent();
+                file.Add(new StreamContent(fileStream), "file", Path.GetFileName(music.Source));
+                await HimuMusicApiService.PostAsync($"api/music/{response.Result}/upload", file);
+                await HimuMusicApiService.PostAsJsonAsync("api/favorite", new
+                {
+                    UserId = AppState.CurrentLoginUserId,
+                    FavoriteId = response.Result
+                });
+                _showSnackbar = true;
+            }
+        }
+    }
+}

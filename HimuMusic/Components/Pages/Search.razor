@@ -1,0 +1,81 @@
+﻿@page "/search"
+@using HimuMusic.Models
+@using HimuMusic.Services
+@using HimuMusic.States
+
+@inject MusicPlayerState PlayerState
+@inject IHimuMusicApiService HimuMusicApiService
+@inject MusicPlayerState AppState
+
+<MCol>
+    <MTextField TValue="string" Label="在 Himu Music 音乐库中搜索"
+                @bind-Value="_userInput"
+                OnChange="HandleInputChanged"
+                AppendIcon="mdi-magnify">
+    </MTextField>
+    <MList Subheader
+           TwoLine>
+        <MSubheader>搜索结果</MSubheader>
+        @foreach (var item in _searchItems)
+        {
+            <MListItem Value="item.Id">
+                <MListItemAvatar Tile Size=48>
+                    <MImage Src="@($"data:image/jpeg;base64,{item.AlbumPictureBase64}")">
+                    </MImage>
+                </MListItemAvatar>
+                <MListItemContent>
+                    <MListItemTitle>@item.Title</MListItemTitle>
+                    <MListItemSubtitle>@item.FirstPerformer</MListItemSubtitle>
+                </MListItemContent>
+                <MListItemAction>
+                    <MButton Icon OnClick="args => HandleAddFavorite(args, item)">
+                        <MIcon Color="primary lighten-1">mdi-heart-plus</MIcon>
+                    </MButton>
+                </MListItemAction>
+            </MListItem>
+        }
+    </MList>
+    
+    <MSnackbar @bind-Value="_showSnackbar"
+               Action="Close">
+        添加成功!
+    </MSnackbar>
+</MCol>
+
+
+@code {
+    private string _userInput = string.Empty;
+    private List<AudioItem> _searchItems = [];
+    private bool _showSnackbar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        PlayerState.CurrentNavTitle = "搜索";
+    }
+
+    private async void HandleInputChanged(string input)
+    {
+        var response =
+            await HimuMusicApiService.GetAsync<List<AudioItem>>($"api/music/search?query={input}");
+        if (response.StatusCode == 200)
+        {
+            _searchItems = response.Result!;
+            StateHasChanged();
+        }
+    }
+
+    private async void HandleAddFavorite(MouseEventArgs _, AudioItem item)
+    {
+        var response = await HimuMusicApiService.PostAsJsonAsync("api/favorite", new
+        {
+            UserId = AppState.CurrentLoginUserId,
+            FavoriteId = item.Id
+        });
+        if (response.StatusCode == 200)
+        {
+            _showSnackbar = true;
+        }
+    }
+
+}

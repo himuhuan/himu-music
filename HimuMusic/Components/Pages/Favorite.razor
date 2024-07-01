@@ -1,0 +1,79 @@
+﻿@page "/favorite"
+@using HimuMusic.Models
+@using HimuMusic.Services
+@using HimuMusic.States
+
+@inject MusicPlayerState PlayerState
+@inject IHimuMusicApiService HimuMusicApiService
+@inject IAudioPlayer MusicPlayer
+
+@if (_loading)
+{
+    @foreach (var _ in Enumerable.Range(1, 10))
+    {
+        <MSkeletonLoader Type="list-item-avatar-three-line">
+        </MSkeletonLoader>
+    }
+}
+else
+{
+    <MList TwoLine>
+        <MListItemGroup ValueChanged="HandleChangeMusic"
+                        Style="padding: 0">
+            @foreach (var (item, index) in _userFavorites.Select((item, index) => (item, index)))
+            {
+                <MListItem Value="@index">
+                    <MListItemAvatar Tile Size=64>
+                        <MImage Src="@($"data:image/jpeg;base64,{item.AlbumPictureBase64}")">
+                        </MImage>
+                    </MListItemAvatar>
+                    <MListItemContent>
+                        <MListItemTitle>@item.Title</MListItemTitle>
+                        <MListItemSubtitle Class="text--primary">@item.FirstPerformer</MListItemSubtitle>
+                    </MListItemContent>
+                </MListItem>
+                @if (index == _userFavorites.Count - 1)
+                {
+                    <div style="height: 500px"></div>
+                }
+            }
+        </MListItemGroup>
+    </MList>
+}
+
+@code {
+    private List<AudioItem> _userFavorites = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        PlayerState.CurrentNavTitle = "收藏";
+        var response =
+            await HimuMusicApiService.GetAsync<List<AudioItem>>($"api/favorite/user/{PlayerState.CurrentLoginUserId}");
+        await Task.Delay(1000);
+        if (response.StatusCode == 200)
+        {
+            _userFavorites = response.Result!;
+            _loading = false;
+        }
+    }
+
+
+    private void HandleChangeMusic(StringNumber? value)
+    {
+        if (PlayerState.CurrentPlayingList != _userFavorites)
+            PlayerState.CurrentPlayingList = _userFavorites;
+        if (value != null)
+        {
+            int index = (int) value.Value;
+            PlayerState.CurrentPlayingListIndex = index;
+            if (MusicPlayer.IsPlaying())
+            {
+                MusicPlayer.Stop();
+            }
+            MusicPlayer.Play(PlayerState.PlayingMusic!);
+            StateHasChanged();
+        }
+    }
+}

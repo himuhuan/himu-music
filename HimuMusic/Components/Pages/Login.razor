@@ -1,0 +1,97 @@
+@page "/login"
+@using HimuMusic.Services
+@using HimuMusic.States
+
+@inject MusicPlayerState PlayerState
+@inject NavigationManager NavigationManager
+@inject IHimuMusicApiService HimuMusicApiService
+
+<MBanner>
+    <ChildContent>
+        你必须先登录你的账户才能使用 HimuMusic 的完整功能。
+    </ChildContent>
+    <IconContent>
+        <MAvatar Color="primary" Size="40">
+            <ChildContent>
+                <MIcon Color="white">mdi-lock
+                </MIcon>
+            </ChildContent>
+        </MAvatar>
+    </IconContent>
+</MBanner>
+
+<MSubheader>登录</MSubheader>
+
+<MCol>
+    <MTextField @bind-Value="_authenticateRequest.UserName"
+                Counter="20"
+                Label="用户名"
+                PersistentHint
+                Outlined
+                Required>
+    </MTextField>
+    <MTextField @bind-Value="_authenticateRequest.Password"
+                Required
+                Outlined
+                AppendIcon="@(_showPassword ? "mdi-eye" : "mdi-eye-off")"
+                Type="@(_showPassword ? "text" : "password")"
+                Label="密码"
+                Hint="At least 8 characters"
+                Counter="true"
+                OnAppendClick="() => _showPassword = !_showPassword">
+    </MTextField>
+    <MDivider></MDivider>
+    <MButton Block Color="primary" style="padding: 20px;" class="mb-5" OnClick="HandleLoginClick">立即登陆</MButton>
+    <MButton Block Color="teal" style="padding: 20px" OnClick="NavToRegister" Dark>没有账户？立即注册！</MButton>
+    <MSnackbar @bind-Value="_showSnackbar"
+               Action="Close">
+        发生错误，登陆失败
+    </MSnackbar>
+</MCol>
+
+@code
+{
+    private readonly AuthenticateRequest _authenticateRequest = new("", "");
+    private bool _showPassword = false;
+    private bool _showSnackbar = false;
+
+    internal class AuthenticateRequest(string userName, string password)
+    {
+        public string UserName { get; set; } = userName;
+        public string Password { get; set; } = password;
+
+        public void Deconstruct(out string userName, out string password)
+        {
+            userName = UserName;
+            password = Password;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        PlayerState.ShowMusicPanel = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleLoginClick()
+    {
+        var response = 
+            await HimuMusicApiService.PostAsJsonAsync<long, AuthenticateRequest>("api/user/authenticate", _authenticateRequest);
+        if (response.StatusCode == 200)
+        {
+            PlayerState.CurrentLoginUserId = response.Result;
+            PlayerState.ShowMusicPanel = true;
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            _showSnackbar = true;
+        }
+    }
+
+    private void NavToRegister()
+    {
+        NavigationManager.NavigateTo("/register");
+    }
+}

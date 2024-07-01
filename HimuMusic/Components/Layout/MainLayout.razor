@@ -1,0 +1,63 @@
+﻿@inject NavigationManager navManager
+@using HimuMusic.States
+@inject MusicPlayerState PlayerState
+@inherits LayoutComponentBase
+
+<MApp>
+    <MMain>
+        <MAppBar Color="#f85a66" Dark Dense>
+            <MToolbarTitle> @PlayerState.CurrentNavTitle </MToolbarTitle>
+            <MSpacer></MSpacer>
+            <MButton Icon OnClick="NavToSearch">
+                <MIcon>mdi-magnify</MIcon>
+            </MButton>
+        </MAppBar>
+        <MContainer Fluid class="overflow-scroll">
+            @Body
+        </MContainer>
+    </MMain>
+
+
+    <MFooter style="background-color: transparent; padding: 1px; margin: 0" Fixed>
+        @if (PlayerState.ShowMusicPanel)
+        {
+            <MusicPlayerPanel />
+        }
+    </MFooter>
+
+
+    <MBottomNavigation App Shift Grow @bind-Value="_navigationValue" Color="primary">
+        <MButton @onclick="NavToFavorite">
+            <span>收藏</span>
+            <MIcon>mdi-heart</MIcon>
+        </MButton>
+        <MButton @onclick="NavToHome">
+            <span>我的</span>
+            <MIcon>mdi-account</MIcon>
+        </MButton>
+    </MBottomNavigation>
+</MApp>
+
+@code {
+    private StringNumber _navigationValue = 2;
+
+    private void NavToRecent()
+    {
+        navManager.NavigateTo("/recent");
+    }
+
+    private void NavToFavorite()
+    {
+        navManager.NavigateTo("/favorite");
+    }
+
+    private void NavToHome()
+    {
+        navManager.NavigateTo("/");
+    }
+
+    private void NavToSearch()
+    {
+        navManager.NavigateTo("/search");
+    }
+}

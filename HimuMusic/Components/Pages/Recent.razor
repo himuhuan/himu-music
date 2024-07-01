@@ -1,0 +1,73 @@
+@page "/recent"
+@using HimuMusic.Models
+@using HimuMusic.Services
+@using HimuMusic.States
+
+@inject MusicPlayerState PlayerState
+@inject IHimuMusicApiService HimuMusicApiService
+
+@if (_loading)
+{
+    @foreach (var _ in Enumerable.Range(1, 10))
+    {
+        <MSkeletonLoader Type="list-item-avatar-three-line">
+        </MSkeletonLoader>
+    }
+}
+else
+{
+    <MList TwoLine>
+        <MListItemGroup @bind-Value="PlayerState.CurrentPlayingListIndex"
+                        Style="padding: 0">
+            @foreach (var (item, index) in _musics.Select((item, index) => (item, index)))
+            {
+                <MListItem Value="@index">
+                    <MListItemAvatar Tile Size=64>
+                        <MImage Src="@($"data:image/jpeg;base64,{item.AlbumPictureBase64}")">
+                        </MImage>
+                    </MListItemAvatar>
+                    <MListItemContent>
+                        <MListItemTitle>@item.Title</MListItemTitle>
+                        <MListItemSubtitle Class="text--primary">@item.FirstPerformer</MListItemSubtitle>
+                    </MListItemContent>
+                </MListItem>
+                @if (index == _musics.Count - 1)
+                {
+                    <div style="height: 500px"></div>
+                }
+            }
+        </MListItemGroup>
+    </MList>
+}
+
+@code {
+    private List<AudioItem> _musics = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        PlayerState.CurrentNavTitle = "最近播放";
+        var response =
+            await HimuMusicApiService.GetAsync<List<AudioItem>>($"api/recent_play/user/{PlayerState.CurrentLoginUserId}");
+        await Task.Delay(1000);
+        if (response.StatusCode == 200)
+        {
+            _musics = response.Result!;
+            PlayerState.CurrentPlayingList = response.Result!.Count == 0 ? null : _musics;
+            PlayerState.CurrentPlayingListIndex = 0;
+            _loading = false;
+        }
+    }
+
+
+    private void HandleChangeMusic(StringNumber? value)
+    {
+        if (value != null)
+        {
+            int index = (int) value.Value;
+            PlayerState.CurrentPlayingListIndex = index;
+            StateHasChanged();
+        }
+    }
+}
